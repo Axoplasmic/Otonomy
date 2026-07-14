@@ -2,12 +2,20 @@ import React, { useState } from 'react';
 import { Modal, View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { api } from '../api';
 import { Button, Field, Row } from './ui';
+import { Select, DateField, TimeField, Stepper, DEPARTMENTS, ROLES } from './pickers';
 import { colors, spacing, font, radius } from '../theme';
 
-// Composes a naive ISO timestamp (local wall-clock) from date + hour parts.
-function iso(date, hour) {
-  const h = String(parseInt(hour, 10) || 0).padStart(2, '0');
-  return `${date}T${h}:00:00`;
+// Composes a naive ISO timestamp. If the end time is at or before the start,
+// the shift runs overnight, so the end lands on the next day.
+function composeTimes(date, startTime, endTime) {
+  const start = `${date}T${startTime}:00`;
+  let endDate = date;
+  if (endTime <= startTime) {
+    const d = new Date(`${date}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    endDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  return { startTime: start, endTime: `${endDate}T${endTime}:00` };
 }
 
 export function NewShiftModal({ visible, onClose, onCreated }) {
@@ -16,28 +24,33 @@ export function NewShiftModal({ visible, onClose, onCreated }) {
   const [roleRequired, setRoleRequired] = useState('RN');
   const [location, setLocation] = useState('');
   const [date, setDate] = useState('');
-  const [startHour, setStartHour] = useState('7');
-  const [endHour, setEndHour] = useState('19');
-  const [requiredStaff, setRequiredStaff] = useState('1');
+  const [startTime, setStartTime] = useState('07:00');
+  const [endTime, setEndTime] = useState('19:00');
+  const [requiredStaff, setRequiredStaff] = useState(1);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setError(null);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setError('Enter a date as YYYY-MM-DD');
+    if (!date) {
+      setError('Please pick a date');
+      return;
+    }
+    if (!title.trim()) {
+      setError('Please enter a title');
       return;
     }
     setSaving(true);
     try {
+      const times = composeTimes(date, startTime, endTime);
       const { shift } = await api.createShift({
         title: title.trim(),
-        department: department.trim(),
-        roleRequired: roleRequired.trim() || undefined,
+        department,
+        roleRequired: roleRequired || undefined,
         location: location.trim() || undefined,
-        startTime: iso(date, startHour),
-        endTime: iso(date, endHour),
-        requiredStaff: parseInt(requiredStaff, 10) || 1,
+        startTime: times.startTime,
+        endTime: times.endTime,
+        requiredStaff,
       });
       onCreated?.(shift);
       onClose();
@@ -47,6 +60,8 @@ export function NewShiftModal({ visible, onClose, onCreated }) {
       setSaving(false);
     }
   }
+
+  const overnight = endTime <= startTime;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -59,20 +74,21 @@ export function NewShiftModal({ visible, onClose, onCreated }) {
             </Pressable>
           </Row>
           <ScrollView keyboardShouldPersistTaps="handled">
-            <Field label="Title" value={title} onChangeText={setTitle} />
-            <Field label="Department" value={department} onChangeText={setDepartment} />
-            <Field label="Role required" value={roleRequired} onChangeText={setRoleRequired} placeholder="RN, LPN…" />
+            <Field label="Title" value={title} onChangeText={setTitle} placeholder="Day Shift" />
+            <Select label="Department" value={department} options={DEPARTMENTS} onChange={setDepartment} />
+            <Select label="Role required" value={roleRequired} options={ROLES} onChange={setRoleRequired} placeholder="Any role" />
             <Field label="Location" value={location} onChangeText={setLocation} placeholder="ED Bay A" />
-            <Field label="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} placeholder="2026-07-20" autoCapitalize="none" />
+            <DateField label="Date" value={date} onChange={setDate} />
             <Row style={{ gap: spacing.md }}>
               <View style={{ flex: 1 }}>
-                <Field label="Start hour (0-23)" value={startHour} onChangeText={setStartHour} keyboardType="number-pad" />
+                <TimeField label="Start" value={startTime} onChange={setStartTime} />
               </View>
               <View style={{ flex: 1 }}>
-                <Field label="End hour (0-23)" value={endHour} onChangeText={setEndHour} keyboardType="number-pad" />
+                <TimeField label="End" value={endTime} onChange={setEndTime} />
               </View>
             </Row>
-            <Field label="Staff needed" value={requiredStaff} onChangeText={setRequiredStaff} keyboardType="number-pad" />
+            {overnight ? <Text style={styles.hint}>Overnight shift — ends the next day.</Text> : null}
+            <Stepper label="Staff needed" value={requiredStaff} onChange={setRequiredStaff} min={1} max={20} />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Button title="Publish shift" onPress={save} loading={saving} />
             <View style={{ height: spacing.xl }} />
@@ -93,5 +109,6 @@ const styles = StyleSheet.create({
     maxHeight: '90%',
   },
   close: { fontSize: 20, color: colors.textMuted, paddingHorizontal: spacing.sm },
+  hint: { ...font.small, color: colors.warning, marginTop: -spacing.sm, marginBottom: spacing.md },
   error: { color: colors.danger, marginBottom: spacing.md },
 });

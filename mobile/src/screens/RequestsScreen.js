@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { useFeedback } from '../components/Feedback';
 import { Card, Button, Badge, Row, EmptyState, Field } from '../components/ui';
+import { DateField } from '../components/pickers';
 import { ScreenShell, useFocusLoad, LoadingState } from '../components/screen';
 import { formatDay, formatRange, formatDate } from '../format';
 import { colors, spacing, font, radius } from '../theme';
@@ -92,8 +93,12 @@ function TimeOffList({ data, isManager, refreshing, onRefresh, busyId, onDecide,
   const [reason, setReason] = useState('');
 
   function submit() {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
-      toast.error('Use YYYY-MM-DD for both dates');
+    if (!start || !end) {
+      toast.error('Pick both a start and end date');
+      return;
+    }
+    if (end < start) {
+      toast.error('End date must be on or after the start date');
       return;
     }
     onCreate({ startDate: start, endDate: end, reason: reason.trim() || undefined });
@@ -112,14 +117,8 @@ function TimeOffList({ data, isManager, refreshing, onRefresh, busyId, onDecide,
         !isManager ? (
           <Card style={{ backgroundColor: colors.primarySoft, borderColor: colors.primarySoft }}>
             <Text style={[font.h3, { marginBottom: spacing.sm }]}>Request time off</Text>
-            <Row style={{ gap: spacing.md }}>
-              <View style={{ flex: 1 }}>
-                <Field label="From" value={start} onChangeText={setStart} placeholder="2026-08-01" autoCapitalize="none" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="To" value={end} onChangeText={setEnd} placeholder="2026-08-03" autoCapitalize="none" />
-              </View>
-            </Row>
+            <DateField label="From" value={start} onChange={setStart} />
+            <DateField label="To" value={end} onChange={setEnd} />
             <Field label="Reason (optional)" value={reason} onChangeText={setReason} placeholder="Vacation" />
             <Button title="Submit request" onPress={submit} loading={busyId === 'new'} />
           </Card>

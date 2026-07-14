@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../AuthContext';
 import { Button, Field, Card, Row, Badge } from '../components/ui';
+import { Select, DEPARTMENTS, ROLES } from '../components/pickers';
 import { colors, spacing, font, radius } from '../theme';
 
 export function AuthScreen() {
@@ -81,8 +82,8 @@ export function AuthScreen() {
                 <RolePick label="Worker" active={role === 'worker'} onPress={() => setRole('worker')} />
                 <RolePick label="Manager" active={role === 'manager'} onPress={() => setRole('manager')} />
               </Row>
-              <Field label="Job title" value={jobTitle} onChangeText={setJobTitle} placeholder="RN, LPN, CNA…" />
-              <Field label="Department" value={department} onChangeText={setDepartment} placeholder="Emergency" />
+              <Select label="Job title" value={jobTitle} options={ROLES} onChange={setJobTitle} placeholder="Select your role" />
+              <Select label="Department" value={department} options={DEPARTMENTS} onChange={setDepartment} placeholder="Select a department" />
             </>
           )}
 
