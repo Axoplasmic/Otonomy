@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../db.js';
+import { db, transaction } from '../db.js';
 import { authenticate } from '../auth.js';
 import { wrap, validate } from '../util.js';
 import { syncUserShiftsSafe } from '../google.js';
@@ -92,7 +92,7 @@ router.post(
       return res.status(403).json({ error: 'This swap is directed at another worker' });
     }
 
-    const txn = db.transaction(() => {
+    transaction(() => {
       // Reassign the shift to the accepting worker.
       db.prepare(`UPDATE assignments SET user_id = ?, status = 'claimed' WHERE id = ?`).run(
         req.user.id,
@@ -102,7 +102,6 @@ router.post(
         `UPDATE swap_requests SET status = 'accepted', resolved_by = ? WHERE id = ?`
       ).run(req.user.id, swap.id);
     });
-    txn();
 
     // Both calendars change: the shift left the original owner and joined the accepter.
     syncUserShiftsSafe(req.user.id);

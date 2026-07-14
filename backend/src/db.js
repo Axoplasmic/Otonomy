@@ -1,13 +1,29 @@
-import Database from 'better-sqlite3';
+// Uses Node's built-in SQLite (node:sqlite, Node 22.5+/24+) — no native module
+// to compile or download, so it runs anywhere Node does.
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'otonomy.db');
 
-export const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+export const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
+
+// Runs fn inside a transaction, committing on success and rolling back on error.
+// (node:sqlite has no db.transaction() helper, so we wrap BEGIN/COMMIT/ROLLBACK.)
+export function transaction(fn) {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
 
 export function migrate() {
   db.exec(`

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../db.js';
+import { db, transaction } from '../db.js';
 import { authenticate, requireRole } from '../auth.js';
 import { wrap, validate } from '../util.js';
 
@@ -224,7 +224,7 @@ router.post(
           @required_staff, @notes, 'published', @created_by)`
     );
 
-    const txn = db.transaction(() => {
+    transaction(() => {
       for (const s of source) {
         insert.run({
           title: s.title,
@@ -239,7 +239,6 @@ router.post(
         });
       }
     });
-    txn();
 
     res.status(201).json({ created: source.length });
   })

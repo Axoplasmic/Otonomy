@@ -41,6 +41,11 @@ can:
 
 ## Quick start
 
+> **Requires Node 22.5+** (Node 24 recommended). The backend uses Node's
+> built-in SQLite, so there's nothing native to compile — no Python or build
+> tools needed. Just run `npm install`; don't run `npm audit fix` (it can
+> downgrade Expo and break the app).
+
 ### 1. Backend
 
 ```bash
@@ -185,9 +190,10 @@ the token.
 ## Tech notes
 
 - **Auth**: passwords hashed with bcrypt; stateless JWTs (7-day expiry).
-- **Database**: `better-sqlite3` (synchronous, zero external services). The
-  schema and migrations live in `backend/src/db.js`; the file is created on
-  first run.
+- **Database**: Node's built-in SQLite (`node:sqlite`) — no native module to
+  compile or download, so `npm install` never needs Python or a C++ toolchain.
+  Requires Node 22.5+ (works out of the box on Node 24). The schema and
+  migrations live in `backend/src/db.js`; the file is created on first run.
 - **Roles**: enforced by `requireRole()` middleware on the server, so the API is
   safe regardless of what the client shows.
 - **Config**: copy `backend/.env.example` to `backend/.env` to set `PORT`,
