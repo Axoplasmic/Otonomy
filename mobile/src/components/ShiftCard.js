@@ -6,7 +6,7 @@ import { formatRange } from '../format';
 import { googleEventUrl } from '../calendar';
 
 // One shift, with coverage info and optional action button.
-export function ShiftCard({ shift, action, currentUserId, showCalendarLink }) {
+export function ShiftCard({ shift, action, currentUserId, showCalendarLink, onPress }) {
   const tone =
     shift.status === 'cancelled'
       ? 'danger'
@@ -23,7 +23,7 @@ export function ShiftCard({ shift, action, currentUserId, showCalendarLink }) {
   const mine = shift.assignees?.some((a) => a.user_id === currentUserId);
 
   return (
-    <Card>
+    <Card onPress={onPress}>
       <Row style={{ justifyContent: 'space-between', marginBottom: spacing.xs }}>
         <Text style={font.h3}>{shift.title}</Text>
         <Badge label={statusLabel} tone={tone} />

@@ -116,6 +116,15 @@ db.prepare(
    VALUES (?, ?, ?, ?, 'approved', ?)`
 ).run(ids['alex@otonomy.health'], '2026-07-16', '2026-07-17', 'Medical appointment', managerId);
 
+// Seed a few notifications so the activity feed has content on first login.
+const insertNotif = db.prepare(
+  `INSERT INTO notifications (user_id, type, title, body, read) VALUES (?, ?, ?, ?, ?)`
+);
+insertNotif.run(ids['alex@otonomy.health'], 'timeoff', 'Time off approved', '2026-07-16 → 2026-07-17', 0);
+insertNotif.run(ids['alex@otonomy.health'], 'assigned', 'Added to a shift', 'Night Shift · Jul 14, 7PM', 0);
+insertNotif.run(managerId, 'timeoff', 'Time-off request', 'Jordan Lee: 2026-07-20 → 2026-07-22', 0);
+insertNotif.run(managerId, 'claim', 'Open shift claimed', 'Sam Patel picked up ICU Night · Jul 15, 7PM', 1);
+
 const counts = {
   users: db.prepare('SELECT COUNT(*) c FROM users').get().c,
   shifts: db.prepare('SELECT COUNT(*) c FROM shifts').get().c,

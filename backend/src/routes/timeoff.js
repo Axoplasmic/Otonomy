@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../db.js';
 import { authenticate, requireRole } from '../auth.js';
 import { wrap, validate } from '../util.js';
+import { notify, notifyManagers } from '../notify.js';
 
 const router = Router();
 
@@ -50,6 +51,7 @@ router.post(
       )
       .run(req.user.id, data.startDate, data.endDate, data.reason ?? null);
     const row = db.prepare('SELECT * FROM time_off_requests WHERE id = ?').get(info.lastInsertRowid);
+    notifyManagers('timeoff', 'Time-off request', `${req.user.name}: ${data.startDate} → ${data.endDate}`, req.user.id);
     res.status(201).json({ request: hydrate(row) });
   })
 );
@@ -69,6 +71,7 @@ router.post(
       `UPDATE time_off_requests SET status = ?, resolved_by = ? WHERE id = ?`
     ).run(data.decision, req.user.id, req.params.id);
     const updated = db.prepare('SELECT * FROM time_off_requests WHERE id = ?').get(req.params.id);
+    notify(row.user_id, 'timeoff', `Time off ${data.decision}`, `${row.start_date} → ${row.end_date}`);
     res.json({ request: hydrate(updated) });
   })
 );

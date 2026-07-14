@@ -10,6 +10,7 @@ import swapRoutes from './routes/swaps.js';
 import timeoffRoutes from './routes/timeoff.js';
 import calendarRoutes from './routes/calendar.js';
 import googleRoutes from './routes/google.js';
+import notificationRoutes from './routes/notifications.js';
 
 migrate();
 
@@ -27,6 +28,7 @@ app.use('/api/swaps', swapRoutes);
 app.use('/api/time-off', timeoffRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/google', googleRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 + error handlers
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

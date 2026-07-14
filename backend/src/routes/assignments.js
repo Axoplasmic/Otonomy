@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { authenticate, requireRole } from '../auth.js';
 import { wrap, validate } from '../util.js';
 import { syncUserShiftsSafe } from '../google.js';
+import { notify, notifyManagers, shiftWhen } from '../notify.js';
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router.post(
       .prepare('SELECT * FROM assignments WHERE shift_id = ? AND user_id = ?')
       .get(data.shiftId, data.userId);
     syncUserShiftsSafe(data.userId);
+    notify(data.userId, 'assigned', 'Added to a shift', `${shift.title} · ${shiftWhen(shift.start_time)}`);
     res.status(201).json({ assignment });
   })
 );
@@ -90,6 +92,7 @@ router.post(
       .prepare('SELECT * FROM assignments WHERE shift_id = ? AND user_id = ?')
       .get(data.shiftId, req.user.id);
     syncUserShiftsSafe(req.user.id);
+    notifyManagers('claim', 'Open shift claimed', `${req.user.name} picked up ${shift.title} · ${shiftWhen(shift.start_time)}`, req.user.id);
     res.status(201).json({ assignment });
   })
 );
@@ -106,6 +109,10 @@ router.post(
     }
     db.prepare(`UPDATE assignments SET status = 'dropped' WHERE id = ?`).run(req.params.id);
     syncUserShiftsSafe(assignment.user_id);
+    const shift = db.prepare('SELECT * FROM shifts WHERE id = ?').get(assignment.shift_id);
+    if (shift && req.user.id === assignment.user_id) {
+      notifyManagers('drop', 'Shift dropped', `${req.user.name} dropped ${shift.title} · ${shiftWhen(shift.start_time)}`, req.user.id);
+    }
     res.json({ ok: true });
   })
 );

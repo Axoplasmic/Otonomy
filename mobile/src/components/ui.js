@@ -36,7 +36,14 @@ export function Button({ title, onPress, variant = 'primary', loading, disabled,
   );
 }
 
-export function Card({ children, style }) {
+export function Card({ children, style, onPress }) {
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => [styles.card, style, pressed && { opacity: 0.9 }]}>
+        {children}
+      </Pressable>
+    );
+  }
   return <View style={[styles.card, style]}>{children}</View>;
 }
 

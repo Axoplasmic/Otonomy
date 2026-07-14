@@ -1,9 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { SectionList, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { useFeedback } from '../components/Feedback';
 import { ShiftCard } from '../components/ShiftCard';
+import { ShiftDetailModal } from '../components/ShiftDetailModal';
+import { FilterChips } from '../components/FilterChips';
 import { Button, EmptyState } from '../components/ui';
 import { ScreenShell, SectionHeader, useFocusLoad, LoadingState } from '../components/screen';
 import { groupByDay } from '../format';
@@ -12,16 +14,24 @@ import { spacing } from '../theme';
 export function OpenShiftsScreen() {
   const { user } = useAuth();
   const { toast } = useFeedback();
-  const [sections, setSections] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [dept, setDept] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   const load = useCallback(async () => {
     const { shifts } = await api.listShifts('?open=true');
-    setSections(groupByDay(shifts));
+    setShifts(shifts);
   }, []);
 
   const { reload, loading } = useFocusLoad(load, setRefreshing);
+
+  const departments = useMemo(() => [...new Set(shifts.map((s) => s.department))].sort(), [shifts]);
+  const sections = useMemo(
+    () => groupByDay(dept ? shifts.filter((s) => s.department === dept) : shifts),
+    [shifts, dept]
+  );
 
   async function claim(shift) {
     setBusyId(shift.id);
@@ -46,6 +56,9 @@ export function OpenShiftsScreen() {
 
   return (
     <ScreenShell title="Open Shifts" subtitle="Available to pick up">
+      {departments.length > 1 ? (
+        <FilterChips options={departments} value={dept} onChange={setDept} />
+      ) : null}
       <SectionList
         sections={sections}
         keyExtractor={(item) => String(item.id)}
@@ -61,6 +74,7 @@ export function OpenShiftsScreen() {
             <ShiftCard
               shift={item}
               currentUserId={user.id}
+              onPress={() => setDetail(item)}
               action={
                 alreadyOn ? null : (
                   <Button
@@ -73,6 +87,14 @@ export function OpenShiftsScreen() {
             />
           );
         }}
+      />
+      <ShiftDetailModal
+        shift={detail}
+        visible={!!detail}
+        currentUserId={user.id}
+        onClose={() => setDetail(null)}
+        onClaim={claim}
+        busy={busyId === detail?.id}
       />
     </ScreenShell>
   );

@@ -78,6 +78,11 @@ export const api = {
   googleSync: () => request('POST', '/google/sync'),
   googleDisconnect: () => request('POST', '/google/disconnect'),
 
+  // Notifications
+  listNotifications: () => request('GET', '/notifications'),
+  unreadCount: () => request('GET', '/notifications/unread-count'),
+  markNotificationsRead: () => request('POST', '/notifications/read'),
+
   // Time off
   listTimeOff: (query = '') => request('GET', `/time-off${query}`),
   createTimeOff: (payload) => request('POST', '/time-off', payload),

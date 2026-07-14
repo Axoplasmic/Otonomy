@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { useFeedback } from '../components/Feedback';
 import { ShiftCard } from '../components/ShiftCard';
+import { ShiftDetailModal } from '../components/ShiftDetailModal';
 import { Button, EmptyState } from '../components/ui';
 import { ScreenShell, SectionHeader, useFocusLoad, LoadingState } from '../components/screen';
 import { groupByDay } from '../format';
@@ -15,6 +16,7 @@ export function MyShiftsScreen() {
   const [sections, setSections] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   const load = useCallback(async () => {
     const { shifts } = await api.listShifts('?mine=true');
@@ -86,6 +88,7 @@ export function MyShiftsScreen() {
             shift={item}
             currentUserId={user.id}
             showCalendarLink
+            onPress={() => setDetail(item)}
             action={
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button
@@ -106,6 +109,15 @@ export function MyShiftsScreen() {
             }
           />
         )}
+      />
+      <ShiftDetailModal
+        shift={detail}
+        visible={!!detail}
+        currentUserId={user.id}
+        onClose={() => setDetail(null)}
+        onDrop={drop}
+        onOfferSwap={offerSwap}
+        busy={busyId === detail?.id}
       />
     </ScreenShell>
   );

@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { NotificationBell } from './Notifications';
 import { colors, spacing, font } from '../theme';
 
-// Standard page frame: a header with title/subtitle over the content.
-export function ScreenShell({ title, subtitle, right, children }) {
+// Standard page frame: a header with title/subtitle, a bell, and an optional
+// action on the right.
+export function ScreenShell({ title, subtitle, right, hideBell, children }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -12,7 +14,10 @@ export function ScreenShell({ title, subtitle, right, children }) {
           <Text style={font.h1}>{title}</Text>
           {subtitle ? <Text style={font.muted}>{subtitle}</Text> : null}
         </View>
-        {right}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+          {right}
+          {hideBell ? null : <NotificationBell />}
+        </View>
       </View>
       <View style={{ flex: 1 }}>{children}</View>
     </SafeAreaView>

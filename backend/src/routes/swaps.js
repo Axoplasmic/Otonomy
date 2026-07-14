@@ -4,6 +4,7 @@ import { db, transaction } from '../db.js';
 import { authenticate } from '../auth.js';
 import { wrap, validate } from '../util.js';
 import { syncUserShiftsSafe } from '../google.js';
+import { notify, notifyManagers } from '../notify.js';
 
 const router = Router();
 
@@ -74,7 +75,12 @@ router.post(
       .run(data.assignmentId, req.user.id, data.targetUserId ?? null, data.message ?? null);
 
     const swap = db.prepare('SELECT * FROM swap_requests WHERE id = ?').get(info.lastInsertRowid);
-    res.status(201).json({ swap: hydrate(swap) });
+    const detail = hydrate(swap);
+    if (data.targetUserId) {
+      notify(data.targetUserId, 'swap', 'Swap offered to you', `${req.user.name} offered ${detail.title}`);
+    }
+    notifyManagers('swap', 'Shift offered for swap', `${req.user.name} offered ${detail.title}`, req.user.id);
+    res.status(201).json({ swap: detail });
   })
 );
 
@@ -107,8 +113,9 @@ router.post(
     syncUserShiftsSafe(req.user.id);
     syncUserShiftsSafe(swap.requested_by);
 
-    const updated = db.prepare('SELECT * FROM swap_requests WHERE id = ?').get(req.params.id);
-    res.json({ swap: hydrate(updated) });
+    const updated = hydrate(db.prepare('SELECT * FROM swap_requests WHERE id = ?').get(req.params.id));
+    notify(swap.requested_by, 'swap', 'Your swap was accepted', `${req.user.name} took ${updated.title}`);
+    res.json({ swap: updated });
   })
 );
 

@@ -22,6 +22,10 @@ shifts, pick up open shifts, offer swaps, and request time off.
 | Time off          | Submit requests                          | Approve / deny; **approved leave shows as blocked cells** and blocks assignment |
 | Swaps             | Offer a shift for swap; pick up others'  | Overview of all swaps                       |
 | Calendar sync     | Subscribe shifts to Google/Apple/Outlook; per-shift add-to-calendar | —              |
+| Dashboard         | —                                        | Coverage stats, meter & understaffed alerts (Home tab) |
+| Filtering         | Filter open shifts by department         | Filter the schedule by department          |
+| Shift detail      | Tap any shift for full detail + actions  | Tap understaffed shifts to assign          |
+| Notifications     | In-app activity feed (bell + unread badge) | Same — assignments, claims, swaps, time-off |
 | Auth              | Register / sign in, session persistence  | Same, with elevated permissions            |
 
 ### Manager week grid
@@ -134,6 +138,18 @@ All routes are under `/api`. Authenticated routes require an
 | GET    | `/time-off`            | Requests (own, or all for 🔒)  |
 | POST   | `/time-off`            | Submit a request               |
 | POST   | `/time-off/:id/decision` | 🔒 Approve / deny            |
+
+### Notifications
+
+| Method | Path                          | Description                              |
+| ------ | ----------------------------- | ---------------------------------------- |
+| GET    | `/notifications`              | Recent notifications + unread count      |
+| GET    | `/notifications/unread-count` | Unread count (for the header badge)      |
+| POST   | `/notifications/read`         | Mark all the caller's notifications read |
+
+Notifications are created automatically on assignment, claim, drop, swap
+offer/accept, and time-off submit/decision, and delivered to the affected
+worker or the managers.
 
 ### Calendar sync
 

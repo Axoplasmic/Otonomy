@@ -7,6 +7,7 @@ import { OpenShiftsScreen } from './screens/OpenShiftsScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { RequestsScreen } from './screens/RequestsScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { DashboardScreen } from './screens/DashboardScreen';
 import { colors, spacing, font } from './theme';
 
 const WORKER_TABS = [
@@ -17,8 +18,8 @@ const WORKER_TABS = [
 ];
 
 const MANAGER_TABS = [
+  { key: 'home', label: 'Home', icon: '📊', Screen: DashboardScreen },
   { key: 'schedule', label: 'Schedule', icon: '🗓️', Screen: ScheduleScreen },
-  { key: 'open', label: 'Open', icon: '⚠️', Screen: OpenShiftsScreen },
   { key: 'requests', label: 'Requests', icon: '✅', Screen: RequestsScreen },
   { key: 'profile', label: 'Profile', icon: '👤', Screen: ProfileScreen },
 ];
