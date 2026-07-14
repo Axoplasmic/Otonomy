@@ -78,4 +78,11 @@ export function migrate() {
     CREATE INDEX IF NOT EXISTS idx_assignments_shift ON assignments(shift_id);
     CREATE INDEX IF NOT EXISTS idx_timeoff_user ON time_off_requests(user_id);
   `);
+
+  // Incremental columns for existing databases.
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userCols.includes('calendar_token')) {
+    // Secret token that authenticates a user's unauthenticated ICS feed URL.
+    db.exec('ALTER TABLE users ADD COLUMN calendar_token TEXT');
+  }
 }

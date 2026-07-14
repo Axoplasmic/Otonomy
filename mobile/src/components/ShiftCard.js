@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Linking } from 'react-native';
 import { Card, Badge, Row, Button } from './ui';
 import { colors, spacing, font } from '../theme';
 import { formatRange } from '../format';
+import { googleEventUrl } from '../calendar';
 
 // One shift, with coverage info and optional action button.
-export function ShiftCard({ shift, action, currentUserId }) {
+export function ShiftCard({ shift, action, currentUserId, showCalendarLink }) {
   const tone =
     shift.status === 'cancelled'
       ? 'danger'
@@ -51,6 +52,15 @@ export function ShiftCard({ shift, action, currentUserId }) {
       ) : null}
 
       {action ? <View style={{ marginTop: spacing.md }}>{action}</View> : null}
+
+      {showCalendarLink && shift.status !== 'cancelled' ? (
+        <Pressable
+          onPress={() => Linking.openURL(googleEventUrl(shift)).catch(() => {})}
+          style={styles.calLink}
+        >
+          <Text style={styles.calLinkText}>📅  Add to Google Calendar</Text>
+        </Pressable>
+      ) : null}
     </Card>
   );
 }
@@ -64,4 +74,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  calLink: { marginTop: spacing.sm, alignItems: 'center' },
+  calLinkText: { ...font.small, color: colors.accent, fontWeight: '600' },
 });

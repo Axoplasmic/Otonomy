@@ -8,6 +8,7 @@ import shiftRoutes from './routes/shifts.js';
 import assignmentRoutes from './routes/assignments.js';
 import swapRoutes from './routes/swaps.js';
 import timeoffRoutes from './routes/timeoff.js';
+import calendarRoutes from './routes/calendar.js';
 
 migrate();
 
@@ -23,6 +24,7 @@ app.use('/api/shifts', shiftRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/swaps', swapRoutes);
 app.use('/api/time-off', timeoffRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // 404 + error handlers
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

@@ -21,6 +21,7 @@ shifts, pick up open shifts, offer swaps, and request time off.
 | Templating        | —                                        | **Copy last week** into the current week   |
 | Time off          | Submit requests                          | Approve / deny; **approved leave shows as blocked cells** and blocks assignment |
 | Swaps             | Offer a shift for swap; pick up others'  | Overview of all swaps                       |
+| Calendar sync     | Subscribe shifts to Google/Apple/Outlook; per-shift add-to-calendar | —              |
 | Auth              | Register / sign in, session persistence  | Same, with elevated permissions            |
 
 ### Manager week grid
@@ -128,6 +129,24 @@ All routes are under `/api`. Authenticated routes require an
 | GET    | `/time-off`            | Requests (own, or all for 🔒)  |
 | POST   | `/time-off`            | Submit a request               |
 | POST   | `/time-off/:id/decision` | 🔒 Approve / deny            |
+
+### Calendar sync
+
+| Method | Path                        | Description                                             |
+| ------ | --------------------------- | ------------------------------------------------------ |
+| GET    | `/calendar/token`           | Get (or create) the caller's private feed token        |
+| POST   | `/calendar/token/rotate`    | Rotate the token, invalidating the old feed URL         |
+| GET    | `/calendar/:token.ics`      | **Public** iCalendar feed of the user's shifts (token in URL authenticates it) |
+
+Workers subscribe their calendar once from **Profile → Sync to your calendar**.
+The feed is a standard iCalendar (`.ics`) document that Google/Apple/Outlook poll
+and keep in sync automatically as shifts change. The feed URL carries an
+unguessable token instead of a login, so calendar clients can fetch it directly.
+
+> For live auto-sync, the backend must be reachable from the internet (Google's
+> servers fetch the URL). In local dev the per-shift **Add to Google Calendar**
+> links on *My Shifts* work without a public server, since they just pre-fill
+> Google's event form.
 
 ---
 

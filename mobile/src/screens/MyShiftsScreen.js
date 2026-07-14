@@ -67,6 +67,7 @@ export function MyShiftsScreen() {
           <ShiftCard
             shift={item}
             currentUserId={user.id}
+            showCalendarLink
             action={
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button

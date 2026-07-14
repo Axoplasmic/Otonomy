@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useAuth } from '../AuthContext';
 import { Card, Button, Badge, Row } from '../components/ui';
 import { ScreenShell } from '../components/screen';
+import { CalendarSync } from '../components/CalendarSync';
 import { BASE_URL } from '../api';
 import { colors, spacing, font, radius } from '../theme';
 
@@ -35,6 +36,8 @@ export function ProfileScreen() {
           {user.department ? <Detail label="Department" value={user.department} /> : null}
           {user.phone ? <Detail label="Phone" value={user.phone} /> : null}
         </Card>
+
+        {user.role === 'worker' ? <CalendarSync /> : null}
 
         <Card>
           <Text style={font.h3}>Connection</Text>

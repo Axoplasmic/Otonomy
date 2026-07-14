@@ -68,6 +68,10 @@ export const api = {
   acceptSwap: (id) => request('POST', `/swaps/${id}/accept`),
   rejectSwap: (id) => request('POST', `/swaps/${id}/reject`),
 
+  // Calendar sync
+  getCalendarToken: () => request('GET', '/calendar/token'),
+  rotateCalendarToken: () => request('POST', '/calendar/token/rotate'),
+
   // Time off
   listTimeOff: (query = '') => request('GET', `/time-off${query}`),
   createTimeOff: (payload) => request('POST', '/time-off', payload),
