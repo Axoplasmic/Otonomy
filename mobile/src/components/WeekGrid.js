@@ -7,9 +7,8 @@ import {
   StyleSheet,
   PanResponder,
   Animated,
-  Alert,
-  Platform,
 } from 'react-native';
+import { useFeedback } from './Feedback';
 import { colors, spacing, font, radius } from '../theme';
 import {
   startOfWeek,
@@ -46,6 +45,7 @@ function initials(name) {
 // A manager week view: 7 day columns of shift chips, navigable week-by-week,
 // with drag-to-assign from a worker tray and approved time-off shown as blocks.
 export function WeekGrid({ shifts, workers = [], timeOff = [], onSelectShift, onAssign, onCopyWeek }) {
+  const { toast, confirm } = useFeedback();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [pinned, setPinned] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -95,27 +95,24 @@ export function WeekGrid({ shifts, workers = [], timeOff = [], onSelectShift, on
   const today = ymd(new Date());
 
   // --- Copy last week ---
-  const doCopy = () => {
+  const doCopy = async () => {
     const from = ymd(addDays(weekStart, -7));
     const to = ymd(weekStart);
-    const confirm = async () => {
-      setCopying(true);
-      try {
-        const created = await onCopyWeek?.(from, to);
-        Alert.alert('Week copied', `Added ${created ?? 0} shift${created === 1 ? '' : 's'} to this week.`);
-      } catch (e) {
-        Alert.alert('Could not copy week', e.message);
-      } finally {
-        setCopying(false);
-      }
-    };
-    // Alert.alert confirm dialog doesn't fire on web; branch for reliability.
-    if (Platform.OS === 'web') confirm();
-    else
-      Alert.alert('Copy last week', `Duplicate last week's shifts into ${weekRangeLabel(weekStart)}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Copy', onPress: confirm },
-      ]);
+    const ok = await confirm({
+      title: 'Copy last week',
+      message: `Duplicate last week's shifts into ${weekRangeLabel(weekStart)} as fresh open shifts?`,
+      confirmText: 'Copy',
+    });
+    if (!ok) return;
+    setCopying(true);
+    try {
+      const created = await onCopyWeek?.(from, to);
+      toast.success(`Added ${created ?? 0} shift${created === 1 ? '' : 's'} to this week`);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setCopying(false);
+    }
   };
 
   // --- Drag handling ---
@@ -167,13 +164,14 @@ export function WeekGrid({ shifts, workers = [], timeOff = [], onSelectShift, on
     const dayKey = (shift.start_time || '').slice(0, 10);
     const off = offOnDay(timeOff, dayKey).some((r) => r.user_id === worker.id);
     if (off) {
-      Alert.alert('On approved leave', `${worker.name} has approved time off on ${monthDay(shiftDate(shift.start_time))}.`);
+      toast.error(`${worker.name} is on leave ${monthDay(shiftDate(shift.start_time))}`);
       return;
     }
     try {
       await onAssign?.(shift.id, worker.id);
+      toast.success(`${worker.name.split(' ')[0]} assigned to ${shift.title}`);
     } catch (e) {
-      Alert.alert('Could not assign', e.message);
+      toast.error(e.message);
     }
   };
 

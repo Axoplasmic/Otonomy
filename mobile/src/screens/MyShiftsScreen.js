@@ -1,15 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import { SectionList, View, Text, RefreshControl, Alert } from 'react-native';
+import { SectionList, View, Text, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
+import { useFeedback } from '../components/Feedback';
 import { ShiftCard } from '../components/ShiftCard';
 import { Button, EmptyState } from '../components/ui';
-import { ScreenShell, SectionHeader, useFocusLoad } from '../components/screen';
+import { ScreenShell, SectionHeader, useFocusLoad, LoadingState } from '../components/screen';
 import { groupByDay } from '../format';
 import { spacing } from '../theme';
 
 export function MyShiftsScreen() {
   const { user } = useAuth();
+  const { toast, confirm } = useFeedback();
   const [sections, setSections] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -19,17 +21,25 @@ export function MyShiftsScreen() {
     setSections(groupByDay(shifts.filter((s) => s.status !== 'cancelled')));
   }, []);
 
-  const { reload } = useFocusLoad(load, setRefreshing);
+  const { reload, loading } = useFocusLoad(load, setRefreshing);
 
   async function drop(shift) {
     const assignment = shift.assignees.find((a) => a.user_id === user.id);
     if (!assignment) return;
+    const ok = await confirm({
+      title: 'Drop this shift?',
+      message: `${shift.title} — ${shift.department}. Your manager will see it reopen.`,
+      confirmText: 'Drop shift',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusyId(shift.id);
     try {
       await api.drop(assignment.assignment_id);
+      toast.info('Shift dropped');
       await reload();
     } catch (e) {
-      Alert.alert('Could not drop shift', e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
@@ -41,12 +51,20 @@ export function MyShiftsScreen() {
     setBusyId(shift.id);
     try {
       await api.createSwap({ assignmentId: assignment.assignment_id, message: 'Open to swap' });
-      Alert.alert('Swap offered', 'Coworkers can now pick up this shift.');
+      toast.success('Swap offered — coworkers can pick it up');
     } catch (e) {
-      Alert.alert('Could not offer swap', e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
+  }
+
+  if (loading) {
+    return (
+      <ScreenShell title="My Shifts" subtitle={user?.name}>
+        <LoadingState />
+      </ScreenShell>
+    );
   }
 
   return (

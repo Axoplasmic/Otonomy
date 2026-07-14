@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Linking, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import { api } from '../api';
+import { useFeedback } from './Feedback';
 import { Card, Button, Badge, Row } from './ui';
 import { colors, spacing, font } from '../theme';
 
 // Two-way Google Calendar sync via OAuth. Renders one of three states:
 // not-configured, disconnected (connect), or connected (sync / disconnect).
 export function GoogleSync() {
+  const { toast, confirm } = useFeedback();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -30,12 +32,9 @@ export function GoogleSync() {
     try {
       const { url } = await api.googleConnectUrl();
       await Linking.openURL(url);
-      Alert.alert(
-        'Finish in your browser',
-        'Authorize Otonomy in the browser tab that opened, then come back and tap “Refresh”.'
-      );
+      toast.info('Authorize in the new tab, then tap Refresh');
     } catch (e) {
-      Alert.alert('Could not start Google sign-in', e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
@@ -45,25 +44,30 @@ export function GoogleSync() {
     setBusy(true);
     try {
       const { summary } = await api.googleSync();
-      Alert.alert(
-        'Synced to Google Calendar',
-        `${summary.created} added · ${summary.updated} updated · ${summary.deleted} removed`
-      );
+      toast.success(`${summary.created} added · ${summary.updated} updated · ${summary.deleted} removed`);
       await refresh();
     } catch (e) {
-      Alert.alert('Sync failed', e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }
   }
 
   async function disconnect() {
+    const ok = await confirm({
+      title: 'Disconnect Google Calendar?',
+      message: 'This removes the shift events Otonomy added to your calendar.',
+      confirmText: 'Disconnect',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.googleDisconnect();
+      toast.info('Google Calendar disconnected');
       await refresh();
     } catch (e) {
-      Alert.alert('Could not disconnect', e.message);
+      toast.error(e.message);
     } finally {
       setBusy(false);
     }

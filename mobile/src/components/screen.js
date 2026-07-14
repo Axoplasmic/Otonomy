@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, font } from '../theme';
 
@@ -28,8 +28,10 @@ export function SectionHeader({ title }) {
 }
 
 // Loads data on mount and exposes a reload that toggles the refreshing flag.
+// `loading` is true only until the first load resolves (for initial spinners).
 export function useFocusLoad(loader, setRefreshing) {
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     setRefreshing?.(true);
@@ -40,6 +42,7 @@ export function useFocusLoad(loader, setRefreshing) {
       setError(e.message);
     } finally {
       setRefreshing?.(false);
+      setLoading(false);
     }
   }, [loader, setRefreshing]);
 
@@ -47,7 +50,16 @@ export function useFocusLoad(loader, setRefreshing) {
     reload();
   }, [reload]);
 
-  return { reload, error };
+  return { reload, error, loading };
+}
+
+// Centered spinner for first-load states.
+export function LoadingState() {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48 }}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

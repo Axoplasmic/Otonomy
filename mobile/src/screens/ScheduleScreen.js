@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import { ShiftCard } from '../components/ShiftCard';
 import { Button, EmptyState } from '../components/ui';
-import { ScreenShell, SectionHeader, useFocusLoad } from '../components/screen';
+import { ScreenShell, SectionHeader, useFocusLoad, LoadingState } from '../components/screen';
 import { NewShiftModal } from '../components/NewShiftModal';
 import { AssignModal } from '../components/AssignModal';
 import { WeekGrid } from '../components/WeekGrid';
@@ -37,7 +37,7 @@ export function ScheduleScreen() {
     setStats({ open: activeShifts.filter((s) => s.isOpen).length, total: activeShifts.length });
   }, []);
 
-  const { reload } = useFocusLoad(load, setRefreshing);
+  const { reload, loading } = useFocusLoad(load, setRefreshing);
 
   // Reopen the assign modal with fresh data after an assignment changes.
   const onAssignChanged = async () => {
@@ -76,7 +76,9 @@ export function ScheduleScreen() {
         <Toggle label="List" active={view === 'list'} onPress={() => setView('list')} />
       </View>
 
-      {view === 'week' ? (
+      {loading ? (
+        <LoadingState />
+      ) : view === 'week' ? (
         active.length === 0 ? (
           <EmptyState title="No shifts yet" subtitle="Tap “+ New” to publish your first shift." />
         ) : (

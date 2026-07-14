@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, RefreshControl, Alert, Pressable, StyleSheet } from 'react-native';
+import { View, Text, FlatList, RefreshControl, Pressable, StyleSheet } from 'react-native';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
+import { useFeedback } from '../components/Feedback';
 import { Card, Button, Badge, Row, EmptyState, Field } from '../components/ui';
-import { ScreenShell, useFocusLoad } from '../components/screen';
+import { ScreenShell, useFocusLoad, LoadingState } from '../components/screen';
 import { formatDay, formatRange, formatDate } from '../format';
 import { colors, spacing, font, radius } from '../theme';
 
@@ -12,6 +13,7 @@ const TO_TONE = { pending: 'warning', approved: 'success', denied: 'danger' };
 
 export function RequestsScreen() {
   const { user } = useAuth();
+  const { toast } = useFeedback();
   const isManager = user.role === 'manager';
   const [tab, setTab] = useState('timeoff');
   const [swaps, setSwaps] = useState([]);
@@ -25,18 +27,27 @@ export function RequestsScreen() {
     setTimeoff(t.requests);
   }, []);
 
-  const { reload } = useFocusLoad(load, setRefreshing);
+  const { reload, loading } = useFocusLoad(load, setRefreshing);
 
-  async function run(id, fn, errTitle) {
+  async function run(id, fn, successMsg) {
     setBusyId(id);
     try {
       await fn();
+      if (successMsg) toast.success(successMsg);
       await reload();
     } catch (e) {
-      Alert.alert(errTitle, e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
+  }
+
+  if (loading) {
+    return (
+      <ScreenShell title="Requests" subtitle={isManager ? 'Approvals & coverage' : 'Your swaps & time off'}>
+        <LoadingState />
+      </ScreenShell>
+    );
   }
 
   return (
@@ -54,9 +65,9 @@ export function RequestsScreen() {
           onRefresh={reload}
           busyId={busyId}
           onDecide={(id, decision) =>
-            run(id, () => api.decideTimeOff(id, decision), 'Could not update request')
+            run(id, () => api.decideTimeOff(id, decision), `Request ${decision}`)
           }
-          onCreate={(payload) => run('new', () => api.createTimeOff(payload), 'Could not submit')}
+          onCreate={(payload) => run('new', () => api.createTimeOff(payload), 'Time-off request submitted')}
         />
       ) : (
         <SwapList
@@ -66,8 +77,8 @@ export function RequestsScreen() {
           refreshing={refreshing}
           onRefresh={reload}
           busyId={busyId}
-          onAccept={(id) => run(id, () => api.acceptSwap(id), 'Could not accept swap')}
-          onReject={(id) => run(id, () => api.rejectSwap(id), 'Could not update swap')}
+          onAccept={(id) => run(id, () => api.acceptSwap(id), 'Shift picked up')}
+          onReject={(id) => run(id, () => api.rejectSwap(id), 'Swap updated')}
         />
       )}
     </ScreenShell>
@@ -75,13 +86,14 @@ export function RequestsScreen() {
 }
 
 function TimeOffList({ data, isManager, refreshing, onRefresh, busyId, onDecide, onCreate }) {
+  const { toast } = useFeedback();
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [reason, setReason] = useState('');
 
   function submit() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
-      Alert.alert('Check dates', 'Use YYYY-MM-DD for both dates.');
+      toast.error('Use YYYY-MM-DD for both dates');
       return;
     }
     onCreate({ startDate: start, endDate: end, reason: reason.trim() || undefined });

@@ -1,15 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import { SectionList, RefreshControl, Alert } from 'react-native';
+import { SectionList, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
+import { useFeedback } from '../components/Feedback';
 import { ShiftCard } from '../components/ShiftCard';
 import { Button, EmptyState } from '../components/ui';
-import { ScreenShell, SectionHeader, useFocusLoad } from '../components/screen';
+import { ScreenShell, SectionHeader, useFocusLoad, LoadingState } from '../components/screen';
 import { groupByDay } from '../format';
 import { spacing } from '../theme';
 
 export function OpenShiftsScreen() {
   const { user } = useAuth();
+  const { toast } = useFeedback();
   const [sections, setSections] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -19,19 +21,27 @@ export function OpenShiftsScreen() {
     setSections(groupByDay(shifts));
   }, []);
 
-  const { reload } = useFocusLoad(load, setRefreshing);
+  const { reload, loading } = useFocusLoad(load, setRefreshing);
 
   async function claim(shift) {
     setBusyId(shift.id);
     try {
       await api.claim(shift.id);
-      Alert.alert('Shift claimed', `You picked up ${shift.title}.`);
+      toast.success(`You picked up ${shift.title}`);
       await reload();
     } catch (e) {
-      Alert.alert('Could not claim shift', e.message);
+      toast.error(e.message);
     } finally {
       setBusyId(null);
     }
+  }
+
+  if (loading) {
+    return (
+      <ScreenShell title="Open Shifts" subtitle="Available to pick up">
+        <LoadingState />
+      </ScreenShell>
+    );
   }
 
   return (
