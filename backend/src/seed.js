@@ -109,6 +109,13 @@ db.prepare(
    VALUES (?, ?, ?, ?)`
 ).run(ids['jordan@otonomy.health'], '2026-07-20', '2026-07-22', 'Family event');
 
+// An already-approved time-off request, so it shows as blocked cells in the
+// manager week grid and marks the worker unavailable when assigning.
+db.prepare(
+  `INSERT INTO time_off_requests (user_id, start_date, end_date, reason, status, resolved_by)
+   VALUES (?, ?, ?, ?, 'approved', ?)`
+).run(ids['alex@otonomy.health'], '2026-07-16', '2026-07-17', 'Medical appointment', managerId);
+
 const counts = {
   users: db.prepare('SELECT COUNT(*) c FROM users').get().c,
   shifts: db.prepare('SELECT COUNT(*) c FROM shifts').get().c,

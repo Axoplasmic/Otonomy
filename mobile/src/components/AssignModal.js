@@ -3,10 +3,10 @@ import { Modal, View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator }
 import { api } from '../api';
 import { Row, Badge, Button } from './ui';
 import { colors, spacing, font, radius } from '../theme';
-import { formatRange } from '../format';
+import { formatRange, offOnDay } from '../format';
 
 // Lets a manager assign workers to a specific shift.
-export function AssignModal({ shift, visible, onClose, onChanged }) {
+export function AssignModal({ shift, visible, onClose, onChanged, timeOff = [] }) {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -22,6 +22,9 @@ export function AssignModal({ shift, visible, onClose, onChanged }) {
 
   if (!shift) return null;
   const assignedIds = new Set((shift.assignees || []).map((a) => a.user_id));
+  // Workers with approved leave overlapping this shift's day.
+  const dayKey = (shift.start_time || '').slice(0, 10);
+  const offIds = new Set(offOnDay(timeOff, dayKey).map((r) => r.user_id));
 
   async function toggle(worker) {
     setBusyId(worker.id);
@@ -63,18 +66,24 @@ export function AssignModal({ shift, visible, onClose, onChanged }) {
               keyExtractor={(w) => String(w.id)}
               renderItem={({ item }) => {
                 const assigned = assignedIds.has(item.id);
+                const onLeave = offIds.has(item.id);
                 return (
-                  <Row style={styles.workerRow}>
+                  <Row style={[styles.workerRow, onLeave && !assigned && styles.workerRowOff]}>
                     <View style={{ flex: 1 }}>
                       <Text style={font.h3}>{item.name}</Text>
                       <Text style={font.small}>
                         {[item.job_title, item.department].filter(Boolean).join(' · ')}
                       </Text>
                     </View>
-                    {assigned ? <Badge label="Assigned" tone="success" /> : null}
+                    {assigned ? (
+                      <Badge label="Assigned" tone="success" />
+                    ) : onLeave ? (
+                      <Badge label="On leave" tone="danger" />
+                    ) : null}
                     <Button
-                      title={assigned ? 'Remove' : 'Assign'}
+                      title={assigned ? 'Remove' : onLeave ? 'Off' : 'Assign'}
                       variant={assigned ? 'danger' : 'primary'}
+                      disabled={onLeave && !assigned}
                       loading={busyId === item.id}
                       onPress={() => toggle(item)}
                       style={{ marginLeft: spacing.sm, height: 40, paddingHorizontal: spacing.md }}
@@ -108,4 +117,5 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
+  workerRowOff: { backgroundColor: colors.dangerSoft, borderColor: colors.danger },
 });

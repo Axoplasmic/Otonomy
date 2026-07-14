@@ -54,6 +54,8 @@ export const api = {
   createShift: (payload) => request('POST', '/shifts', payload),
   updateShift: (id, payload) => request('PATCH', `/shifts/${id}`, payload),
   cancelShift: (id) => request('DELETE', `/shifts/${id}`),
+  copyWeek: (fromWeekStart, toWeekStart) =>
+    request('POST', '/shifts/copy-week', { fromWeekStart, toWeekStart }),
 
   // Assignments
   assign: (shiftId, userId) => request('POST', '/assignments', { shiftId, userId }),

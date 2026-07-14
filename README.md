@@ -15,12 +15,26 @@ shifts, pick up open shifts, offer swaps, and request time off.
 
 | Area              | Worker                                   | Manager                                    |
 | ----------------- | ---------------------------------------- | ------------------------------------------ |
-| Schedule          | See assigned shifts, grouped by day      | See full schedule with coverage per shift  |
+| Schedule          | See assigned shifts, grouped by day      | Week grid + list view with coverage per shift |
 | Open shifts       | Claim available shifts                   | Publish shifts, set required staff         |
-| Assignment        | Drop own shifts                          | Assign / remove staff on any shift         |
+| Assignment        | Drop own shifts                          | Assign / remove staff, or **drag a teammate onto a shift** |
+| Templating        | —                                        | **Copy last week** into the current week   |
+| Time off          | Submit requests                          | Approve / deny; **approved leave shows as blocked cells** and blocks assignment |
 | Swaps             | Offer a shift for swap; pick up others'  | Overview of all swaps                       |
-| Time off          | Submit requests                          | Approve / deny requests                     |
 | Auth              | Register / sign in, session persistence  | Same, with elevated permissions            |
+
+### Manager week grid
+
+The Schedule screen defaults to a **week grid**: seven day columns of
+color-coded shift chips (green = fully staffed, purple = partially open, amber =
+needs staff), with per-day coverage summaries and today highlighted. Managers
+can:
+
+- **Drag** a teammate from the tray onto a shift chip to assign them (dropping
+  someone onto a day they have approved leave is blocked).
+- **Copy last week** to duplicate the previous week's shift structure (as fresh,
+  unstaffed shifts) into the week in view.
+- See **approved time off as red blocked cells** in each day column.
 
 ---
 
@@ -86,6 +100,7 @@ All routes are under `/api`. Authenticated routes require an
 | GET    | `/shifts`       | List. Filters: `?from`, `?to`, `?department`, `?open=true`, `?mine=true` |
 | GET    | `/shifts/:id`   | Shift detail with assignees + coverage                |
 | POST   | `/shifts`       | 🔒 Create a shift                                     |
+| POST   | `/shifts/copy-week` | 🔒 Duplicate a week's shifts (`fromWeekStart`, `toWeekStart`) |
 | PATCH  | `/shifts/:id`   | 🔒 Update a shift                                     |
 | DELETE | `/shifts/:id`   | 🔒 Cancel a shift                                     |
 

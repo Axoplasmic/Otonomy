@@ -176,4 +176,73 @@ router.delete(
   })
 );
 
+// Shifts a naive local ISO timestamp by whole days, preserving wall-clock time.
+function addDaysIso(iso, days) {
+  const d = new Date(`${iso.replace(' ', 'T')}Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 19);
+}
+
+const copyWeekSchema = z.object({
+  fromWeekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  toWeekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+// Duplicates every active shift in the source week into the target week,
+// preserving weekday, time, role and staffing (assignments are NOT copied,
+// so the new week starts fully open). Used by "copy last week".
+router.post(
+  '/copy-week',
+  authenticate,
+  requireRole('manager'),
+  wrap((req, res) => {
+    const data = validate(copyWeekSchema, req, res);
+    if (!data) return;
+
+    const from = new Date(`${data.fromWeekStart}T00:00:00Z`);
+    const to = new Date(`${data.toWeekStart}T00:00:00Z`);
+    const deltaDays = Math.round((to - from) / 86400000);
+    const weekEndExclusive = new Date(from.getTime() + 7 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+
+    const source = db
+      .prepare(
+        `SELECT * FROM shifts
+         WHERE date(start_time) >= date(?) AND date(start_time) < date(?)
+           AND status != 'cancelled'
+         ORDER BY start_time`
+      )
+      .all(data.fromWeekStart, weekEndExclusive);
+
+    const insert = db.prepare(
+      `INSERT INTO shifts
+         (title, department, role_required, location, start_time, end_time,
+          required_staff, notes, status, created_by)
+       VALUES
+         (@title, @department, @role_required, @location, @start_time, @end_time,
+          @required_staff, @notes, 'published', @created_by)`
+    );
+
+    const txn = db.transaction(() => {
+      for (const s of source) {
+        insert.run({
+          title: s.title,
+          department: s.department,
+          role_required: s.role_required,
+          location: s.location,
+          start_time: addDaysIso(s.start_time, deltaDays),
+          end_time: addDaysIso(s.end_time, deltaDays),
+          required_staff: s.required_staff,
+          notes: s.notes,
+          created_by: req.user.id,
+        });
+      }
+    });
+    txn();
+
+    res.status(201).json({ created: source.length });
+  })
+);
+
 export default router;

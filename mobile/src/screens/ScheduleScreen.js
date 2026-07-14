@@ -16,16 +16,24 @@ export function ScheduleScreen() {
   const [view, setView] = useState('week'); // 'week' | 'list'
   const [sections, setSections] = useState([]);
   const [active, setActive] = useState([]);
+  const [workers, setWorkers] = useState([]);
+  const [timeOff, setTimeOff] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [assignShift, setAssignShift] = useState(null);
   const [stats, setStats] = useState({ open: 0, total: 0 });
 
   const load = useCallback(async () => {
-    const { shifts } = await api.listShifts();
+    const [{ shifts }, { users }, { requests }] = await Promise.all([
+      api.listShifts(),
+      api.listUsers('?role=worker'),
+      api.listTimeOff('?status=approved'),
+    ]);
     const activeShifts = shifts.filter((s) => s.status !== 'cancelled');
     setActive(activeShifts);
     setSections(groupByDay(activeShifts));
+    setWorkers(users);
+    setTimeOff(requests);
     setStats({ open: activeShifts.filter((s) => s.isOpen).length, total: activeShifts.length });
   }, []);
 
@@ -38,6 +46,17 @@ export function ScheduleScreen() {
       const { shift } = await api.getShift(assignShift.id);
       setAssignShift(shift);
     }
+  };
+
+  const assignWorker = async (shiftId, workerId) => {
+    await api.assign(shiftId, workerId);
+    await reload();
+  };
+
+  const copyWeek = async (fromWeekStart, toWeekStart) => {
+    const { created } = await api.copyWeek(fromWeekStart, toWeekStart);
+    await reload();
+    return created;
   };
 
   return (
@@ -61,7 +80,14 @@ export function ScheduleScreen() {
         active.length === 0 ? (
           <EmptyState title="No shifts yet" subtitle="Tap “+ New” to publish your first shift." />
         ) : (
-          <WeekGrid shifts={active} onSelectShift={setAssignShift} />
+          <WeekGrid
+            shifts={active}
+            workers={workers}
+            timeOff={timeOff}
+            onSelectShift={setAssignShift}
+            onAssign={assignWorker}
+            onCopyWeek={copyWeek}
+          />
         )
       ) : (
         <SectionList
@@ -92,6 +118,7 @@ export function ScheduleScreen() {
       <NewShiftModal visible={showNew} onClose={() => setShowNew(false)} onCreated={reload} />
       <AssignModal
         shift={assignShift}
+        timeOff={timeOff}
         visible={!!assignShift}
         onClose={() => setAssignShift(null)}
         onChanged={onAssignChanged}

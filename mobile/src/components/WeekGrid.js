@@ -1,5 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  PanResponder,
+  Animated,
+  Alert,
+  Platform,
+} from 'react-native';
 import { colors, spacing, font, radius } from '../theme';
 import {
   startOfWeek,
@@ -10,10 +20,12 @@ import {
   monthDay,
   formatTimeShort,
   shiftDate,
+  offOnDay,
   DAY_LABELS,
 } from '../format';
 
 const COL_W = 138;
+const CHIP_W = 130;
 
 // Coverage → chip colors.
 function coverageStyle(shift) {
@@ -23,13 +35,30 @@ function coverageStyle(shift) {
   return { bg: colors.openSoft, fg: colors.open };
 }
 
-// A manager week view: 7 day columns of shift chips, navigable week-by-week.
-export function WeekGrid({ shifts, onSelectShift, todayKey }) {
+function initials(name) {
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('');
+}
+
+// A manager week view: 7 day columns of shift chips, navigable week-by-week,
+// with drag-to-assign from a worker tray and approved time-off shown as blocks.
+export function WeekGrid({ shifts, workers = [], timeOff = [], onSelectShift, onAssign, onCopyWeek }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [pinned, setPinned] = useState(false);
+  const [copying, setCopying] = useState(false);
 
-  // Until the manager navigates, snap to the week of the earliest shift so
-  // there's always data on screen regardless of the real-world date.
+  // Drag state
+  const [dragging, setDragging] = useState(null); // worker being dragged
+  const [hoverId, setHoverId] = useState(null); // shift id under the finger
+  const pan = useRef(new Animated.ValueXY()).current;
+  const containerRef = useRef(null);
+  const originRef = useRef({ x: 0, y: 0 }); // grid container's window offset
+  const cellRefs = useRef(new Map()); // shiftId -> View node
+  const rectsRef = useRef([]); // cached cell rects captured at drag start
+
   useEffect(() => {
     if (pinned || !shifts.length) return;
     let earliest = null;
@@ -42,7 +71,6 @@ export function WeekGrid({ shifts, onSelectShift, todayKey }) {
 
   const days = useMemo(() => weekDates(weekStart), [weekStart]);
 
-  // Bucket shifts by day key for this week.
   const byDay = useMemo(() => {
     const map = new Map(days.map((d) => [ymd(d), []]));
     for (const s of shifts) {
@@ -64,10 +92,98 @@ export function WeekGrid({ shifts, onSelectShift, todayKey }) {
     setWeekStart(startOfWeek(new Date()));
   };
 
-  const today = todayKey || ymd(new Date());
+  const today = ymd(new Date());
+
+  // --- Copy last week ---
+  const doCopy = () => {
+    const from = ymd(addDays(weekStart, -7));
+    const to = ymd(weekStart);
+    const confirm = async () => {
+      setCopying(true);
+      try {
+        const created = await onCopyWeek?.(from, to);
+        Alert.alert('Week copied', `Added ${created ?? 0} shift${created === 1 ? '' : 's'} to this week.`);
+      } catch (e) {
+        Alert.alert('Could not copy week', e.message);
+      } finally {
+        setCopying(false);
+      }
+    };
+    // Alert.alert confirm dialog doesn't fire on web; branch for reliability.
+    if (Platform.OS === 'web') confirm();
+    else
+      Alert.alert('Copy last week', `Duplicate last week's shifts into ${weekRangeLabel(weekStart)}?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Copy', onPress: confirm },
+      ]);
+  };
+
+  // --- Drag handling ---
+  const snapshotRects = () => {
+    rectsRef.current = [];
+    for (const [id, node] of cellRefs.current.entries()) {
+      if (node && node.measureInWindow) {
+        node.measureInWindow((px, py, w, h) => rectsRef.current.push({ id, px, py, w, h }));
+      }
+    }
+  };
+  const hitTest = (x, y) => {
+    for (const r of rectsRef.current) {
+      if (x >= r.px && x <= r.px + r.w && y >= r.py && y <= r.py + r.h) return r.id;
+    }
+    return null;
+  };
+
+  const measureOrigin = (cb) => {
+    if (containerRef.current && containerRef.current.measureInWindow) {
+      containerRef.current.measureInWindow((x, y) => {
+        originRef.current = { x, y };
+        cb && cb();
+      });
+    } else {
+      cb && cb();
+    }
+  };
+  const startDrag = (worker, x, y) => {
+    setDragging(worker);
+    measureOrigin(() => {
+      snapshotRects();
+      pan.setValue({ x: x - originRef.current.x, y: y - originRef.current.y });
+    });
+  };
+  const moveDrag = (x, y) => {
+    pan.setValue({ x: x - originRef.current.x, y: y - originRef.current.y });
+    setHoverId(hitTest(x, y));
+  };
+  const endDrag = async (x, y) => {
+    const worker = dragging;
+    const targetId = x == null ? null : hitTest(x, y);
+    setDragging(null);
+    setHoverId(null);
+    if (!worker || !targetId) return;
+
+    const shift = shifts.find((s) => s.id === targetId);
+    if (!shift) return;
+    const dayKey = (shift.start_time || '').slice(0, 10);
+    const off = offOnDay(timeOff, dayKey).some((r) => r.user_id === worker.id);
+    if (off) {
+      Alert.alert('On approved leave', `${worker.name} has approved time off on ${monthDay(shiftDate(shift.start_time))}.`);
+      return;
+    }
+    try {
+      await onAssign?.(shift.id, worker.id);
+    } catch (e) {
+      Alert.alert('Could not assign', e.message);
+    }
+  };
+
+  const registerCell = (id) => (node) => {
+    if (node) cellRefs.current.set(id, node);
+    else cellRefs.current.delete(id);
+  };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View ref={containerRef} style={{ flex: 1 }}>
       <View style={styles.navBar}>
         <Pressable onPress={() => nav(-1)} hitSlop={10} style={styles.navBtn}>
           <Text style={styles.navArrow}>‹</Text>
@@ -81,6 +197,10 @@ export function WeekGrid({ shifts, onSelectShift, todayKey }) {
         </Pressable>
       </View>
 
+      <Pressable onPress={doCopy} disabled={copying} style={styles.copyBtn}>
+        <Text style={styles.copyText}>{copying ? 'Copying…' : '⧉  Copy last week into this week'}</Text>
+      </Pressable>
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: spacing.md }}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={{ flexDirection: 'row' }}>
@@ -88,16 +208,15 @@ export function WeekGrid({ shifts, onSelectShift, todayKey }) {
               const key = ymd(date);
               const list = byDay.get(key) || [];
               const isToday = key === today;
+              const offToday = offOnDay(timeOff, key);
               const openCount = list.reduce(
                 (n, s) => n + (s.status !== 'cancelled' ? Math.max(0, s.required_staff - s.filled) : 0),
                 0
               );
               return (
-                <View key={key} style={[styles.col, isToday && styles.colToday]}>
+                <View key={key} style={styles.col}>
                   <View style={[styles.dayHeader, isToday && styles.dayHeaderToday]}>
-                    <Text style={[styles.dayName, isToday && styles.todayText]}>
-                      {DAY_LABELS[date.getDay()]}
-                    </Text>
+                    <Text style={[styles.dayName, isToday && styles.todayText]}>{DAY_LABELS[date.getDay()]}</Text>
                     <Text style={[styles.dayNum, isToday && styles.todayText]}>{monthDay(date)}</Text>
                     <Text style={styles.dayMeta}>
                       {list.length ? `${list.length} shift${list.length > 1 ? 's' : ''}` : '—'}
@@ -105,27 +224,40 @@ export function WeekGrid({ shifts, onSelectShift, todayKey }) {
                     </Text>
                   </View>
 
-                  {list.length === 0 ? (
+                  {offToday.length > 0 && (
+                    <View style={styles.offBlock}>
+                      <Text style={styles.offTitle}>🌴 Time off</Text>
+                      {offToday.map((r) => (
+                        <Text key={r.id} style={styles.offName} numberOfLines={1}>
+                          {r.user_name}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+
+                  {list.length === 0 && offToday.length === 0 ? (
                     <Text style={styles.emptyCol}>No shifts</Text>
                   ) : (
                     list.map((s) => {
                       const c = coverageStyle(s);
+                      const isHover = hoverId === s.id;
                       return (
                         <Pressable
                           key={s.id}
+                          ref={registerCell(s.id)}
                           onPress={() => onSelectShift?.(s)}
-                          style={[styles.chip, { backgroundColor: c.bg }]}
+                          style={[
+                            styles.chip,
+                            { backgroundColor: c.bg },
+                            isHover && styles.chipHover,
+                          ]}
                         >
                           <Text style={[styles.chipTime, { color: c.fg }]} numberOfLines={1}>
                             {formatTimeShort(s.start_time)}–{formatTimeShort(s.end_time)}
                           </Text>
-                          <Text style={styles.chipTitle} numberOfLines={1}>
-                            {s.title}
-                          </Text>
+                          <Text style={styles.chipTitle} numberOfLines={1}>{s.title}</Text>
                           <View style={styles.chipFooter}>
-                            <Text style={styles.chipDept} numberOfLines={1}>
-                              {s.department}
-                            </Text>
+                            <Text style={styles.chipDept} numberOfLines={1}>{s.department}</Text>
                             <Text style={[styles.chipCount, { color: c.fg }]}>
                               {s.filled}/{s.required_staff}
                             </Text>
@@ -140,6 +272,69 @@ export function WeekGrid({ shifts, onSelectShift, todayKey }) {
           </View>
         </ScrollView>
       </ScrollView>
+
+      {/* Worker tray */}
+      <View style={styles.tray}>
+        <Text style={styles.trayHint}>
+          {dragging ? `Drop ${dragging.name} on a shift` : 'Drag a teammate onto a shift to assign'}
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.md }}>
+          {workers.map((w) => (
+            <DraggableWorker key={w.id} worker={w} onStart={startDrag} onMove={moveDrag} onEnd={endDrag} />
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Floating drag avatar */}
+      {dragging && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.floating, { transform: pan.getTranslateTransform() }]}
+        >
+          <View style={styles.floatAvatar}>
+            <Text style={styles.floatInitials}>{initials(dragging.name)}</Text>
+          </View>
+          <Text style={styles.floatName} numberOfLines={1}>{dragging.name}</Text>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+// A worker chip that can be dragged onto the grid. Vertical drag starts the
+// drag; horizontal movement is left to the tray's ScrollView.
+function DraggableWorker({ worker, onStart, onMove, onEnd }) {
+  // Keep the latest callbacks in refs so the once-created PanResponder always
+  // invokes current closures (with up-to-date drag state, shifts, etc.).
+  const startRef = useRef(onStart);
+  const moveRef = useRef(onMove);
+  const endRef = useRef(onEnd);
+  startRef.current = onStart;
+  moveRef.current = onMove;
+  endRef.current = onEnd;
+
+  const responder = useRef(
+    PanResponder.create({
+      // Claim the gesture on press so the browser doesn't select text / scroll.
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => startRef.current(worker, e.nativeEvent.pageX, e.nativeEvent.pageY),
+      onPanResponderMove: (e, g) => moveRef.current(g.moveX, g.moveY),
+      onPanResponderRelease: (e, g) => endRef.current(g.moveX, g.moveY),
+      onPanResponderTerminate: (e, g) => endRef.current(g?.moveX ?? null, g?.moveY ?? null),
+    })
+  ).current;
+
+  return (
+    <View {...responder.panHandlers} style={[styles.trayChip, { userSelect: 'none' }]}>
+      <View style={styles.trayAvatar}>
+        <Text style={styles.trayInitials}>{initials(worker.name)}</Text>
+      </View>
+      <View style={{ flexShrink: 1 }}>
+        <Text style={styles.trayName} numberOfLines={1}>{worker.name.split(' ')[0]}</Text>
+        <Text style={styles.trayRole} numberOfLines={1}>{worker.job_title || 'Staff'}</Text>
+      </View>
     </View>
   );
 }
@@ -165,11 +360,18 @@ const styles = StyleSheet.create({
   navArrow: { fontSize: 24, color: colors.primary, lineHeight: 26 },
   navLabel: { ...font.h3, textAlign: 'center' },
   navSub: { ...font.small, textAlign: 'center' },
-  col: {
-    width: COL_W,
-    marginRight: spacing.sm,
+  copyBtn: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    alignItems: 'center',
   },
-  colToday: {},
+  copyText: { ...font.muted, color: colors.primaryDark, fontWeight: '700' },
+  col: { width: COL_W, marginRight: spacing.sm },
   dayHeader: {
     paddingBottom: spacing.sm,
     marginBottom: spacing.sm,
@@ -182,19 +384,78 @@ const styles = StyleSheet.create({
   dayMeta: { ...font.small, marginTop: 2 },
   todayText: { color: colors.primary },
   emptyCol: { ...font.small, fontStyle: 'italic', paddingVertical: spacing.sm },
-  chip: {
+  offBlock: {
+    backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.danger,
     padding: spacing.sm,
     marginBottom: spacing.sm,
   },
+  offTitle: { fontSize: 11, fontWeight: '800', color: colors.danger, marginBottom: 2 },
+  offName: { fontSize: 12, color: colors.danger },
+  chip: { borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.sm },
+  chipHover: { borderWidth: 2, borderColor: colors.primary, transform: [{ scale: 1.03 }] },
   chipTime: { fontSize: 13, fontWeight: '800' },
   chipTitle: { ...font.small, color: colors.text, fontWeight: '600', marginTop: 2 },
-  chipFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
+  chipFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.xs },
   chipDept: { fontSize: 11, color: colors.textMuted, flex: 1 },
   chipCount: { fontSize: 11, fontWeight: '800' },
+  tray: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.sm,
+  },
+  trayHint: { ...font.small, paddingHorizontal: spacing.md, marginBottom: spacing.sm, fontWeight: '600' },
+  trayChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.bg,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  trayAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trayInitials: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  trayName: { ...font.small, color: colors.text, fontWeight: '700' },
+  trayRole: { fontSize: 11, color: colors.textMuted },
+  floating: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: CHIP_W,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primaryDark,
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    opacity: 0.95,
+    marginLeft: -CHIP_W / 2,
+    marginTop: -22,
+  },
+  floatAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatInitials: { color: colors.primaryDark, fontWeight: '800', fontSize: 12 },
+  floatName: { color: '#fff', fontWeight: '700', fontSize: 12, flexShrink: 1 },
 });

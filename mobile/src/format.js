@@ -88,6 +88,12 @@ export function shiftDate(iso) {
   return parse(iso);
 }
 
+// Approved time-off entries covering a given 'YYYY-MM-DD' day.
+// ISO date strings compare correctly lexicographically.
+export function offOnDay(timeOff, dayKey) {
+  return (timeOff || []).filter((r) => r.start_date <= dayKey && dayKey <= r.end_date);
+}
+
 // Groups a list of shifts by calendar day for section rendering.
 export function groupByDay(shifts) {
   const map = new Map();
