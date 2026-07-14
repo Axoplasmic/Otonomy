@@ -85,4 +85,24 @@ export function migrate() {
     // Secret token that authenticates a user's unauthenticated ICS feed URL.
     db.exec('ALTER TABLE users ADD COLUMN calendar_token TEXT');
   }
+
+  // Google Calendar OAuth: stored tokens per user + shift→event mapping.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS google_accounts (
+      user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      google_email  TEXT,
+      access_token  TEXT,
+      refresh_token TEXT,
+      token_expiry  INTEGER,
+      sync_enabled  INTEGER NOT NULL DEFAULT 1,
+      connected_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS google_event_map (
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      shift_id        INTEGER NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+      google_event_id TEXT NOT NULL,
+      PRIMARY KEY (user_id, shift_id)
+    );
+  `);
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../db.js';
 import { authenticate } from '../auth.js';
 import { wrap, validate } from '../util.js';
+import { syncUserShiftsSafe } from '../google.js';
 
 const router = Router();
 
@@ -102,6 +103,10 @@ router.post(
       ).run(req.user.id, swap.id);
     });
     txn();
+
+    // Both calendars change: the shift left the original owner and joined the accepter.
+    syncUserShiftsSafe(req.user.id);
+    syncUserShiftsSafe(swap.requested_by);
 
     const updated = db.prepare('SELECT * FROM swap_requests WHERE id = ?').get(req.params.id);
     res.json({ swap: hydrate(updated) });

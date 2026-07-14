@@ -72,6 +72,12 @@ export const api = {
   getCalendarToken: () => request('GET', '/calendar/token'),
   rotateCalendarToken: () => request('POST', '/calendar/token/rotate'),
 
+  // Google Calendar two-way sync
+  googleStatus: () => request('GET', '/google/status'),
+  googleConnectUrl: () => request('GET', '/google/connect'),
+  googleSync: () => request('POST', '/google/sync'),
+  googleDisconnect: () => request('POST', '/google/disconnect'),
+
   // Time off
   listTimeOff: (query = '') => request('GET', `/time-off${query}`),
   createTimeOff: (payload) => request('POST', '/time-off', payload),

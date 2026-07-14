@@ -148,6 +148,38 @@ unguessable token instead of a login, so calendar clients can fetch it directly.
 > links on *My Shifts* work without a public server, since they just pre-fill
 > Google's event form.
 
+### Google Calendar two-way sync (OAuth)
+
+An optional, deeper integration: instead of a read-only feed, Otonomy can call
+the Google Calendar API to **create and update real events** in a worker's
+calendar. Because the backend calls Google outbound, it updates instantly and
+doesn't need a public URL. Events auto-update when the worker claims/drops a
+shift or a swap is accepted.
+
+It's **feature-flagged** — with no credentials the app shows a "not enabled"
+note and everyone falls back to the ICS feed. To enable it, set the Google
+variables in `.env` (see `.env.example` for step-by-step Cloud Console setup):
+
+```
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:4000/api/google/callback
+SCHEDULE_TIMEZONE=America/New_York
+```
+
+Workers connect from **Profile → Google Calendar (2-way) → Connect**, authorize
+in the browser, and their shifts sync. The app requests only the least-privilege
+`calendar.events` scope. Disconnecting removes the events it created and revokes
+the token.
+
+| Method | Path                     | Description                                        |
+| ------ | ------------------------ | -------------------------------------------------- |
+| GET    | `/google/status`         | Whether sync is configured / connected, and email  |
+| GET    | `/google/connect`        | Returns the Google OAuth consent URL               |
+| GET    | `/google/callback`       | OAuth redirect target; stores tokens + first sync  |
+| POST   | `/google/sync`           | Push the caller's shifts to Google now             |
+| POST   | `/google/disconnect`     | Delete created events, revoke tokens, clear state  |
+
 ---
 
 ## Tech notes

@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext';
 import { Card, Button, Badge, Row } from '../components/ui';
 import { ScreenShell } from '../components/screen';
 import { CalendarSync } from '../components/CalendarSync';
+import { GoogleSync } from '../components/GoogleSync';
 import { BASE_URL } from '../api';
 import { colors, spacing, font, radius } from '../theme';
 
@@ -38,6 +39,7 @@ export function ProfileScreen() {
         </Card>
 
         {user.role === 'worker' ? <CalendarSync /> : null}
+        {user.role === 'worker' ? <GoogleSync /> : null}
 
         <Card>
           <Text style={font.h3}>Connection</Text>

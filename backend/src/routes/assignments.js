@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../db.js';
 import { authenticate, requireRole } from '../auth.js';
 import { wrap, validate } from '../util.js';
+import { syncUserShiftsSafe } from '../google.js';
 
 const router = Router();
 
@@ -53,6 +54,7 @@ router.post(
     const assignment = db
       .prepare('SELECT * FROM assignments WHERE shift_id = ? AND user_id = ?')
       .get(data.shiftId, data.userId);
+    syncUserShiftsSafe(data.userId);
     res.status(201).json({ assignment });
   })
 );
@@ -87,6 +89,7 @@ router.post(
     const assignment = db
       .prepare('SELECT * FROM assignments WHERE shift_id = ? AND user_id = ?')
       .get(data.shiftId, req.user.id);
+    syncUserShiftsSafe(req.user.id);
     res.status(201).json({ assignment });
   })
 );
@@ -102,6 +105,7 @@ router.post(
       return res.status(403).json({ error: 'You can only drop your own shifts' });
     }
     db.prepare(`UPDATE assignments SET status = 'dropped' WHERE id = ?`).run(req.params.id);
+    syncUserShiftsSafe(assignment.user_id);
     res.json({ ok: true });
   })
 );
